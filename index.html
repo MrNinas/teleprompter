@@ -9,9 +9,6 @@
    intercepting touches unless the teleprompter is actively running. */
 #setup{position:relative;z-index:1}
 #inputScript{position:relative;z-index:1;pointer-events:auto;touch-action:auto;-webkit-user-select:text;user-select:text}
-#inputScript.script-editor{display:block;width:100%;height:32vh;min-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#1d1d1d;color:white;border:1px solid #555;border-radius:10px;padding:15px;font-size:18px;line-height:1.5}
-#inputScript.script-editor:focus-visible{outline:3px solid #8fc9ff;outline-offset:2px}
-#inputScript.script-editor:empty::before{content:attr(data-placeholder);color:#8e8e93;pointer-events:none}
 #display{pointer-events:none}
 #display.active{pointer-events:auto}
 #tapZone{pointer-events:none}
@@ -20,8 +17,8 @@
 </head>
 <body>
 <main id="setup" class="panel"><h1>Simple Teleprompter</h1><p>Paste your script, check the preview, then start scrolling.</p>
-<div class="field"><label id="inputScriptLabel" for="inputScript">Script</label><div id="inputScript" class="script-editor" contenteditable="true" role="textbox" aria-labelledby="inputScriptLabel" aria-multiline="true" spellcheck="true" autocapitalize="sentences" data-placeholder="Paste or type your script here…"></div></div>
-<div class="field"><label for="importFile">Import a text script</label><input id="importFile" type="file" accept=".txt,text/plain" style="max-width:100%;font-size:16px"><div id="importName" class="hint" aria-live="polite">No imported file</div></div>
+<div class="field"><label for="inputScript">Script</label><textarea id="inputScript" spellcheck="true" autocapitalize="sentences" placeholder="Paste or type your script here…"></textarea></div>
+<div class="field"><label>Import a text script</label><button id="importButton" type="button">Choose TXT file</button><div id="importName" class="hint" aria-live="polite">No imported file</div></div>
 <div class="field"><label for="fontSize">Text size</label><div class="range"><input id="fontSize" type="range" min="28" max="110" step="2" value="56"><output id="fontValue" class="value" for="fontSize">56 px</output></div></div>
 <div class="field"><label for="speed">Scroll speed</label><div class="range"><input id="speed" type="range" min="1" max="600" step="1" value="32"><output id="speedValue" class="value" for="speed">32 px/s</output></div></div>
 <div class="field"><label class="toggle"><input id="timedMode" type="checkbox"> Finish the script in a set time</label><div id="durationField" hidden style="margin-top:12px"><label for="duration">Total scrolling time (minutes)</label><input id="duration" type="number" min="0.1" max="240" step="0.5" value="5" style="width:120px;background:#1d1d1d;color:white;border:1px solid #555;border-radius:8px;padding:10px;font-size:18px"><span style="color:#aaa;margin-left:10px">Speed adjusts automatically to fit.</span></div></div>
@@ -37,8 +34,7 @@
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
-const e={setup:$('setup'),display:$('display'),input:$('inputScript'),font:$('fontSize'),speed:$('speed'),margin:$('margin'),mirror:$('mirror'),flip:$('flip'),importFile:$('importFile'),importName:$('importName'),timed:$('timedMode'),duration:$('duration'),guide:$('readingBar'),guideStyle:$('guideStyle'),guidePosition:$('guidePosition'),guideHeight:$('guideHeight'),lineSpacing:$('lineSpacing'),countdownSeconds:$('countdownSeconds'),script:$('script'),text:$('scriptText'),status:$('status'),play:$('playBtn'),countdown:$('countdown')};
-Object.defineProperty(e.input,'value',{get(){return this.innerText.replace(/\u00a0/g,' ');},set(value){this.textContent=String(value);}});
+const e={setup:$('setup'),display:$('display'),input:$('inputScript'),font:$('fontSize'),speed:$('speed'),margin:$('margin'),mirror:$('mirror'),flip:$('flip'),importButton:$('importButton'),importName:$('importName'),timed:$('timedMode'),duration:$('duration'),guide:$('readingBar'),guideStyle:$('guideStyle'),guidePosition:$('guidePosition'),guideHeight:$('guideHeight'),lineSpacing:$('lineSpacing'),countdownSeconds:$('countdownSeconds'),script:$('script'),text:$('scriptText'),status:$('status'),play:$('playBtn'),countdown:$('countdown')};
 let mode='setup',playing=false,offset=0,last=0,frame=0,wakeLock=null,travel=0,startOffset=0,endOffset=0,countdownTimer=null,finished=false;
 const key='simple-teleprompter-v1';
 const clamp=(v,lo,hi,def)=>Number.isFinite(+v)?Math.max(lo,Math.min(hi,+v)):def;
@@ -49,7 +45,7 @@ function orientationButtons(){for(const [id,on] of [['setupMirror',e.mirror.chec
 for(const id of ['setupMirror','previewMirror'])$(id).addEventListener('click',()=>{e.mirror.checked=!e.mirror.checked;orientationButtons();if(mode!=='setup')move();save();});
 for(const id of ['setupFlip','previewFlip'])$(id).addEventListener('click',()=>{e.flip.checked=!e.flip.checked;orientationButtons();if(mode!=='setup'){computeTravel();offset=mode==='preview'?startOffset:clamp(offset,endOffset,startOffset,startOffset);move();status();}save();});
 orientationButtons();
-e.importFile.addEventListener('change',async()=>{const file=e.importFile.files&&e.importFile.files[0];if(!file)return;try{if(!/\.txt$/i.test(file.name)){alert('Please choose a .txt file.');return;}if(e.input.value.trim()&&!confirm('Replace the current script with '+file.name+'?'))return;const value=await file.text();if(!value.trim()){alert('This text file is empty.');return;}e.input.value=value.replace(/\r\n?/g,'\n');e.importName.dataset.filename=file.name;e.importName.textContent='Imported: '+file.name;save();}catch(err){alert('Could not read this file. Please try a plain-text .txt file.');}finally{e.importFile.value='';}});
+e.importButton.addEventListener('click',()=>{const picker=document.createElement('input');picker.type='file';picker.accept='.txt,text/plain';picker.addEventListener('change',async()=>{const file=picker.files&&picker.files[0];if(!file)return;try{if(!/\.txt$/i.test(file.name)){alert('Please choose a .txt file.');return;}if(e.input.value.trim()&&!confirm('Replace the current script with '+file.name+'?'))return;const value=await file.text();if(!value.trim()){alert('This text file is empty.');return;}e.input.value=value.replace(/\r\n?/g,'\n');e.importName.dataset.filename=file.name;e.importName.textContent='Imported: '+file.name;save();}catch(err){alert('Could not read this file. Please try a plain-text .txt file.');}});picker.click();});
 labels();for(const id of ['inputScript','fontSize','speed','margin','mirror','timedMode','duration','readingBar','guideStyle','guidePosition','guideHeight','lineSpacing','countdownSeconds'])$(id).addEventListener('input',()=>{labels();save();});
 function guideCenter(){return e.display.clientHeight*(+e.guidePosition.value/100)+(+e.font.value*+e.lineSpacing.value*+e.guideHeight.value)/2;}
 function render(){e.script.style.setProperty('--font',e.font.value+'px');e.script.style.setProperty('--margin',e.margin.value+'%');e.script.style.setProperty('--line-height',e.lineSpacing.value);e.text.textContent=e.input.value.trim()||'Your script will appear here.';const g=$('readingGuide');g.classList.toggle('off',!e.guide.checked);g.classList.toggle('lines',e.guideStyle.value==='lines');g.style.setProperty('--guide-top',e.guidePosition.value+'%');g.style.setProperty('--guide-height',(+e.font.value*+e.lineSpacing.value*+e.guideHeight.value)+'px');move();}
