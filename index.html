@@ -9,6 +9,9 @@
    intercepting touches unless the teleprompter is actively running. */
 #setup{position:relative;z-index:1}
 #inputScript{position:relative;z-index:1;pointer-events:auto;touch-action:auto;-webkit-user-select:text;user-select:text}
+#inputScript.script-editor{display:block;width:100%;height:32vh;min-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#1d1d1d;color:white;border:1px solid #555;border-radius:10px;padding:15px;font-size:18px;line-height:1.5}
+#inputScript.script-editor:focus-visible{outline:3px solid #8fc9ff;outline-offset:2px}
+#inputScript.script-editor:empty::before{content:attr(data-placeholder);color:#8e8e93;pointer-events:none}
 #display{pointer-events:none}
 #display.active{pointer-events:auto}
 #tapZone{pointer-events:none}
@@ -17,7 +20,7 @@
 </head>
 <body>
 <main id="setup" class="panel"><h1>Simple Teleprompter</h1><p>Paste your script, check the preview, then start scrolling.</p>
-<div class="field"><label for="inputScript">Script</label><textarea id="inputScript" spellcheck="true" autocapitalize="sentences" enterkeyhint="enter" placeholder="Paste or type your script here…"></textarea></div>
+<div class="field"><label id="inputScriptLabel" for="inputScript">Script</label><div id="inputScript" class="script-editor" contenteditable="true" role="textbox" aria-labelledby="inputScriptLabel" aria-multiline="true" spellcheck="true" autocapitalize="sentences" data-placeholder="Paste or type your script here…"></div></div>
 <div class="field"><label for="importFile">Import a text script</label><input id="importFile" type="file" accept=".txt,text/plain" style="max-width:100%;font-size:16px"><div id="importName" class="hint" aria-live="polite">No imported file</div></div>
 <div class="field"><label for="fontSize">Text size</label><div class="range"><input id="fontSize" type="range" min="28" max="110" step="2" value="56"><output id="fontValue" class="value" for="fontSize">56 px</output></div></div>
 <div class="field"><label for="speed">Scroll speed</label><div class="range"><input id="speed" type="range" min="1" max="600" step="1" value="32"><output id="speedValue" class="value" for="speed">32 px/s</output></div></div>
@@ -35,7 +38,7 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 const e={setup:$('setup'),display:$('display'),input:$('inputScript'),font:$('fontSize'),speed:$('speed'),margin:$('margin'),mirror:$('mirror'),flip:$('flip'),importFile:$('importFile'),importName:$('importName'),timed:$('timedMode'),duration:$('duration'),guide:$('readingBar'),guideStyle:$('guideStyle'),guidePosition:$('guidePosition'),guideHeight:$('guideHeight'),lineSpacing:$('lineSpacing'),countdownSeconds:$('countdownSeconds'),script:$('script'),text:$('scriptText'),status:$('status'),play:$('playBtn'),countdown:$('countdown')};
-e.input.readOnly=false;e.input.disabled=false;
+Object.defineProperty(e.input,'value',{get(){return this.innerText.replace(/\u00a0/g,' ');},set(value){this.textContent=String(value);}});
 let mode='setup',playing=false,offset=0,last=0,frame=0,wakeLock=null,travel=0,startOffset=0,endOffset=0,countdownTimer=null,finished=false;
 const key='simple-teleprompter-v1';
 const clamp=(v,lo,hi,def)=>Number.isFinite(+v)?Math.max(lo,Math.min(hi,+v)):def;
@@ -78,4 +81,16 @@ tap.addEventListener('touchend',()=>{touchY=null;setTimeout(()=>{touchMoved=fals
 tap.addEventListener('click',()=>{if(mode!=='running'||touchMoved)return;if(countdownTimer!==null){cancelCountdown();pause();return;}playing?pause():resume();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelCountdown();if(playing)pause();}else if(playing)requestWake();});window.addEventListener('pagehide',()=>{cancelCountdown();pause();save();});
 })();
-</script><script>if ("serviceWorker" in navigator) { window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(() => {}); }); }</script></body></html>
+</script><script>
+if ('serviceWorker' in navigator) {
+  let refreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(refreshing)return;
+    refreshing=true;
+    location.reload();
+  });
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js').then(reg=>reg.update()).catch(()=>{});
+  });
+}
+</script></body></html>
